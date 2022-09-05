@@ -2,6 +2,7 @@
 //!
 //! Many of the types and implementations were taken from [Axum](https://crates.io/crates/axum).
 
+use lunatic::serializer::Serializer;
 pub use path::Path;
 #[cfg(feature = "query")]
 pub use query::Query;
@@ -28,18 +29,24 @@ use crate::response::IntoResponse;
 use crate::RequestContext;
 
 /// Types that can be created from a request. Also known as 'extractors'.
-pub trait FromRequest: Sized {
+pub trait FromRequest<M, S>: Sized
+    where
+        S: Serializer<M>,
+{
     /// If the extractor fails it'll use this "rejection" type. A rejection is
     /// a kind of error that can be converted into a response.
     type Rejection: IntoResponse;
 
     /// Perform the extraction.
-    fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection>;
+    fn from_request(req: &mut RequestContext<M, S>) -> Result<Self, Self::Rejection>;
 }
 
 /// Types that can be created from an owned instance of the request. This can be
 /// used to avoid unecessary clones.
-pub trait FromOwnedRequest: Sized {
+pub trait FromOwnedRequest<M, S>: Sized
+    where
+        S: Serializer<M>,
+{
     /// If the extractor fails it'll use this "rejection" type. A rejection is
     /// a kind of error that can be converted into a response.
     type Rejection: IntoResponse;
@@ -47,16 +54,17 @@ pub trait FromOwnedRequest: Sized {
     /// Extract from an owned instance of the request.
     /// The first extractor in handlers will use this method, and can help avoid
     /// cloning in many cases.
-    fn from_owned_request(req: RequestContext) -> Result<Self, Self::Rejection>;
+    fn from_owned_request(req: RequestContext<M, S>) -> Result<Self, Self::Rejection>;
 }
 
-impl<T> FromOwnedRequest for T
-where
-    T: FromRequest,
+impl<T, M, S> FromOwnedRequest<M, S> for T
+    where
+        T: FromRequest<M, S>,
+        S: Serializer<M>,
 {
-    type Rejection = <T as FromRequest>::Rejection;
+    type Rejection = <T as FromRequest<M, S>>::Rejection;
 
-    fn from_owned_request(mut req: RequestContext) -> Result<Self, Self::Rejection> {
+    fn from_owned_request(mut req: RequestContext<M, S>) -> Result<Self, Self::Rejection> {
         T::from_request(&mut req)
     }
 }

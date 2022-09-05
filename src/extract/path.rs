@@ -6,6 +6,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use http::StatusCode;
+use lunatic::serializer::Serializer;
 use serde::de::DeserializeOwned;
 
 use self::de::PercentDecodedStr;
@@ -143,13 +144,14 @@ impl<T> DerefMut for Path<T> {
     }
 }
 
-impl<T> FromRequest for Path<T>
+impl<T, M, S> FromRequest<M, S> for Path<T>
 where
     T: DeserializeOwned,
+    S: Serializer<M>,
 {
     type Rejection = PathRejection;
 
-    fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection> {
+    fn from_request(req: &mut RequestContext<M, S>) -> Result<Self, Self::Rejection> {
         let params = req
             .extensions_mut()
             .get::<Params>()

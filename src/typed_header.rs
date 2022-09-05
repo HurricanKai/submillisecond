@@ -2,6 +2,7 @@ use std::convert::Infallible;
 use std::ops::Deref;
 
 use headers::HeaderMapExt;
+use lunatic::serializer::Serializer;
 
 use crate::extract::rejection::{TypedHeaderRejection, TypedHeaderRejectionReason};
 use crate::extract::FromRequest;
@@ -45,13 +46,14 @@ use crate::{RequestContext, Response};
 #[derive(Debug, Clone, Copy)]
 pub struct TypedHeader<T>(pub T);
 
-impl<T> FromRequest for TypedHeader<T>
+impl<T, M, S> FromRequest<M, S> for TypedHeader<T>
 where
     T: headers::Header,
+    S: Serializer<M>,
 {
     type Rejection = TypedHeaderRejection;
 
-    fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection> {
+    fn from_request(req: &mut RequestContext<M, S>) -> Result<Self, Self::Rejection> {
         match req.headers().typed_try_get::<T>() {
             Ok(Some(value)) => Ok(Self(value)),
             Ok(None) => Err(TypedHeaderRejection {

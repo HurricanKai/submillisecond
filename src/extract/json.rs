@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use lunatic::serializer::Serializer;
 use serde::de::DeserializeOwned;
 
 use super::rejection::{JsonDataError, JsonRejection, JsonSyntaxError, MissingJsonContentType};
@@ -7,13 +8,14 @@ use super::FromRequest;
 use crate::json::{json_content_type, Json};
 use crate::RequestContext;
 
-impl<T> FromRequest for Json<T>
+impl<T, M, S> FromRequest<M, S> for Json<T>
 where
     T: DeserializeOwned + Debug,
+    S: Serializer<M>,
 {
     type Rejection = JsonRejection;
 
-    fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection> {
+    fn from_request(req: &mut RequestContext<M, S>) -> Result<Self, Self::Rejection> {
         if !json_content_type(req) {
             return Err(MissingJsonContentType.into());
         }

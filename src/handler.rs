@@ -1,6 +1,6 @@
-use crate::extract::{FromOwnedRequest, FromRequest};
-use crate::response::IntoResponse;
-use crate::{RequestContext, Response};
+use lunatic::serializer::{Bincode, Serializer};
+
+use crate::{RequestContext, Response, response::IntoResponse, extract::{FromOwnedRequest, FromRequest}};
 
 /// A handler is implemented for any function which takes any number of
 /// [extractors](crate::extract), and returns any type that implements
@@ -42,17 +42,21 @@ use crate::{RequestContext, Response};
 ///     res
 /// }
 /// ```
-pub trait Handler<Arg = (), Ret = ()> {
+pub trait Handler<Arg = (), Ret = (), M = (), S = Bincode>
+    where
+        S: Serializer<M>,
+{
     /// Handles the request, returning a response.
-    fn handle(&self, req: RequestContext) -> Response;
+    fn handle(&self, req: RequestContext<M, S>) -> Response;
 }
 
-impl<F, R> Handler<(), R> for F
+impl<F, M, S, R> Handler<(), R, M, S> for F
 where
     F: Fn() -> R,
     R: IntoResponse,
+    S: Serializer<M>,
 {
-    fn handle(&self, _req: RequestContext) -> Response {
+    fn handle(&self, _req: RequestContext<M, S>) -> Response {
         self().into_response()
     }
 }
@@ -60,24 +64,25 @@ where
 macro_rules! impl_handler {
     ( $arg1: ident $(, $( $args: ident ),*)? ) => {
         #[allow(unused_parens)]
-        impl<F, $arg1, $( $( $args, )*)? R> Handler<($arg1$(, $( $args, )*)?), R> for F
+        impl<F, M, S, $arg1, $( $( $args, )*)? R> Handler<($arg1$(, $( $args, )*)?), R, M, S> for F
         where
             F: Fn($arg1$(, $( $args, )*)?) -> R,
-            $arg1: FromOwnedRequest,
-            $( $( $args: FromRequest, )* )?
+            $arg1: FromOwnedRequest<M, S>,
+            $( $( $args: FromRequest<M, S>, )* )?
             R: IntoResponse,
+            S: Serializer<M>,
         {
 
             #[allow(unused_mut, unused_variables)]
-            fn handle(&self, mut req: RequestContext) -> Response {
+            fn handle(&self, mut req: RequestContext<M, S>) -> Response {
                 paste::paste! {
                     $($(
-                        let [< $args:lower >] = match <$args as FromRequest>::from_request(&mut req) {
+                        let [< $args:lower >] = match <$args as FromRequest::<M, S>>::from_request(&mut req) {
                             Ok(e) => e,
                             Err(err) => return err.into_response(),
                         };
                     )*)?
-                    let e1 = match <$arg1 as FromOwnedRequest>::from_owned_request(req) {
+                    let e1 = match <$arg1 as FromOwnedRequest::<M, S>>::from_owned_request(req) {
                         Ok(e) => e,
                         Err(err) => return err.into_response(),
                     };

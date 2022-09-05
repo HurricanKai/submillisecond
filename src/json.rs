@@ -1,4 +1,5 @@
 use http::{header, HeaderValue, StatusCode};
+use lunatic::serializer::Serializer;
 use serde::Serialize;
 
 use crate::response::{IntoResponse, Response};
@@ -76,7 +77,10 @@ where
     }
 }
 
-pub(crate) fn json_content_type(req: &RequestContext) -> bool {
+pub(crate) fn json_content_type<M, S>(req: &RequestContext<M, S>) -> bool
+    where
+        S: Serializer<M>,
+{
     let content_type = if let Some(content_type) = req.headers().get(header::CONTENT_TYPE) {
         content_type
     } else {

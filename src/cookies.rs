@@ -10,6 +10,7 @@ pub use cookie::{Cookie, Key};
 use headers::HeaderValue;
 use http::header::{COOKIE, SET_COOKIE};
 use lunatic::process_local;
+use lunatic::serializer::Serializer;
 
 use crate::extract::FromRequest;
 use crate::response::Response;
@@ -102,10 +103,13 @@ impl ops::DerefMut for Cookies {
     }
 }
 
-impl FromRequest for Cookies {
+impl<M, S> FromRequest<M, S> for Cookies
+    where
+        S: Serializer<M>,
+{
     type Rejection = Infallible;
 
-    fn from_request(_req: &mut RequestContext) -> Result<Self, Self::Rejection> {
+    fn from_request(_req: &mut RequestContext<M, S>) -> Result<Self, Self::Rejection> {
         let jar = COOKIES.with_borrow_mut(|cookies| cookies);
         Ok(Cookies { jar })
     }

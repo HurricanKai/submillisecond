@@ -1,5 +1,7 @@
 use std::convert::Infallible;
 
+use lunatic::serializer::Serializer;
+
 use super::FromRequest;
 
 /// Extract the remainder of the url from a wildcard route.
@@ -18,10 +20,13 @@ use super::FromRequest;
 /// ```
 pub struct Splat(pub String);
 
-impl FromRequest for Splat {
+impl<M, S> FromRequest<M, S> for Splat
+    where
+        S: Serializer<M>,
+{
     type Rejection = Infallible;
 
-    fn from_request(req: &mut crate::RequestContext) -> Result<Self, Self::Rejection> {
+    fn from_request(req: &mut crate::RequestContext<M, S>) -> Result<Self, Self::Rejection> {
         Ok(Splat(req.reader.uri[req.reader.cursor..].to_string()))
     }
 }

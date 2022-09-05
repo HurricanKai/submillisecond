@@ -10,6 +10,7 @@ use http::header::{
 use http::StatusCode;
 use lunatic::function::FuncRef;
 use lunatic::net::TcpStream;
+use lunatic::serializer::Serializer;
 use lunatic::{Mailbox, Process};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
@@ -140,10 +141,13 @@ impl WebSocket {
     }
 }
 
-impl FromRequest for WebSocket {
+impl<M, S> FromRequest<M, S> for WebSocket
+    where
+        S: Serializer<M>,
+{
     type Rejection = WebSocketRejection;
 
-    fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection> {
+    fn from_request(req: &mut RequestContext<M, S>) -> Result<Self, Self::Rejection> {
         // Connection must be upgrade to websocket
         let upgrade_header = req
             .headers()

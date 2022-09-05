@@ -6,6 +6,7 @@ use lunatic::function::reference::Fn;
 use lunatic::function::FuncRef;
 use lunatic::net::{TcpListener, ToSocketAddrs};
 use lunatic::Process;
+use lunatic::serializer::{Serializer};
 
 use crate::supervisor::request_supervisor;
 use crate::Handler;
@@ -26,15 +27,16 @@ use crate::Handler;
 /// .serve("0.0.0.0:3000")
 /// ```
 #[derive(Clone, Copy)]
-pub struct Application<T, Arg, Ret> {
+pub struct Application<T, Arg, Ret, M, S> {
     handler: T,
-    phantom: PhantomData<(Arg, Ret)>,
+    phantom: PhantomData<(Arg, Ret, M, S)>,
 }
 
-impl<T, Arg, Ret> Application<T, Arg, Ret>
+impl<T, Arg, Ret, M, S> Application<T, Arg, Ret, M, S>
 where
-    T: Handler<Arg, Ret> + Copy,
+    T: Handler<Arg, Ret, M, S> + Copy,
     T: Fn<T> + Copy,
+    S: Serializer<M> + Serializer<lunatic::protocol::ProtocolCapture<crate::supervisor::WorkerRequest<T>>> + Serializer<crate::supervisor::WorkerRequest<T>>,
 {
     /// Creates a new application with a given router.
     pub fn new(handler: T) -> Self {

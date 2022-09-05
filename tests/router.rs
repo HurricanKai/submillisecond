@@ -1,6 +1,8 @@
 use http::Method;
 use lunatic::net::TcpStream;
 use lunatic::test;
+use lunatic::Mailbox;
+use lunatic::serializer::Bincode;
 use submillisecond::{http, router, Body, Handler, RequestContext};
 
 macro_rules! build_request {
@@ -8,12 +10,13 @@ macro_rules! build_request {
         build_request!($method, $uri, &[])
     };
     ($method: ident, $uri: literal, $body: expr) => {
-        RequestContext::new(
+        RequestContext::<(), Bincode>::new(
             http::Request::builder()
                 .method(Method::$method)
                 .uri($uri)
                 .body(Body::from_slice($body))
-                .unwrap(),
+                .unwrap(),   
+            unsafe { Mailbox::<(), Bincode>::new() /* this can't be right */ },
             TcpStream::connect("127.0.0.1:22").unwrap(),
         )
     };

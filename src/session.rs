@@ -44,6 +44,7 @@ use std::ops::{Deref, DerefMut};
 
 use cookie::{Cookie, Key};
 use lunatic::process::{AbstractProcess, ProcessRef, Request, RequestHandler, StartProcess};
+use lunatic::serializer::Serializer;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -106,13 +107,14 @@ where
     }
 }
 
-impl<D> FromRequest for Session<D>
+impl<D, M, S> FromRequest<M, S> for Session<D>
 where
     D: Default + Serialize + DeserializeOwned + 'static,
+    S: Serializer<M>,
 {
     type Rejection = SessionProcessNotRunning;
 
-    fn from_request(_req: &mut crate::RequestContext) -> Result<Self, Self::Rejection> {
+    fn from_request(_req: &mut crate::RequestContext<M, S>) -> Result<Self, Self::Rejection> {
         let session_process = ProcessRef::<SessionProcess>::lookup("submillisecond_session")
             .ok_or(SessionProcessNotRunning)?;
         let KeyWrapper(key) = session_process.request(GetSessionNameKey);

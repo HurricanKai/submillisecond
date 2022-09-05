@@ -6,6 +6,8 @@ use http::{header, Request, StatusCode, Version};
 use lunatic::function::reference::Fn;
 use lunatic::function::FuncRef;
 use lunatic::net::TcpStream;
+use lunatic::protocol::ProtocolCapture;
+use lunatic::serializer::Serializer;
 use lunatic::{Mailbox, Process};
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +17,7 @@ use crate::{core, Handler, RequestContext};
 
 #[derive(Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
-pub(crate) struct WorkerRequest<T>
+pub struct WorkerRequest<T>
 where
     T: Fn<T>,
 {
@@ -23,7 +25,7 @@ where
     stream: TcpStream,
     handler: FuncRef<T>,
     #[serde(with = "serde_bytes")]
-    request_buffer: Vec<u8>,
+    request_buffer: Vec<u8>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -56,12 +58,13 @@ pub(crate) enum Connection {
     Upgrade(Process<SupervisorResponse>),
 }
 
-pub(crate) fn request_supervisor<T, Arg, Ret>(
+pub(crate) fn request_supervisor<T, Arg, Ret, M, S>(
     (mut stream, handler_ref): (TcpStream, FuncRef<T>),
     mailbox: Mailbox<WorkerResponse>,
 ) where
-    T: Handler<Arg, Ret> + Copy,
+    T: Handler<Arg, Ret, M, S> + Copy,
     T: Fn<T> + Copy,
+    S: Serializer<M> + Serializer<ProtocolCapture<WorkerRequest<T>>>+ Serializer<WorkerRequest<T>>,
 {
     let supervisor = mailbox.this();
     let mut request_buffer: Vec<u8> = Vec::new();
@@ -77,9 +80,9 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
                 supervisor: supervisor.clone(),
                 stream: stream.clone(),
                 handler: handler_ref,
-                request_buffer,
+                request_buffer
             },
-            request_woker::<T, Arg, Ret>,
+            request_woker::<T, Arg, Ret, M, S>,
         );
 
         // Each request has a default 5 minute timeout.
@@ -157,10 +160,11 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
 /// Request workers are processes that do all the request parsing and handling.
 /// At the end they return a buffer to the supervisor to send the response back
 /// to the client.
-fn request_woker<T, Arg, Ret>(mut worker_request: WorkerRequest<T>, _: Mailbox<()>)
+fn request_woker<T, Arg, Ret, M, S>(mut worker_request: WorkerRequest<T>, mailbox: Mailbox<M, S>)
 where
-    T: Handler<Arg, Ret> + Copy,
+    T: Handler<Arg, Ret, M, S> + Copy,
     T: Fn<T> + Copy,
+    S: Serializer<M>,
 {
     let handler = *worker_request.handler;
     let mut requests_buffer = worker_request.request_buffer;
@@ -204,7 +208,7 @@ where
 
     let response = Handler::handle(
         &handler,
-        RequestContext::new(request, worker_request.stream),
+        RequestContext::new(request, mailbox, worker_request.stream),
     )
     .into_response();
     let connection = response
